@@ -4,7 +4,7 @@ from tkinter import ttk
 from standards.gost import gost
 from standards.iso import iso
 from standards.vdz import vdz
-
+from math import pi, ceil
 
 STANDARDS = {
     "ГОСТ": gost,
@@ -20,11 +20,15 @@ def validate_values(format_1_name, format_2_name, D_outer, L):
         d = float(D_outer)
         if not d.is_integer():
             raise Exception("Диаметр должен быть целым числом")
+        if d <= 0:
+            raise Exception("Диаметр должен быть положительным")
     except ValueError:
         raise Exception("Введи корректный диаметр")
 
     try:
         l = float(L)
+        if l<=0:
+            raise Exception("Длинна печи должна быть положительной")
     except ValueError:
         raise Exception("Введи корректную длинну печи")
 
@@ -52,6 +56,35 @@ def update_formats(event=None):
         second_format.set("")
 
 
+def calc(selected_standard, format_1_name, format_2_name, d_outer, l_furnace):
+    data = STANDARDS[selected_standard]
+
+    brick_1 = data[format_1_name] if format_1_name in data else data[int(format_1_name)]
+    brick_2 = data[format_2_name] if format_2_name in data else data[int(format_2_name)]
+
+    if brick_1['c'] != brick_2['c']:
+        return "Высоты форматов не совпадают. Выбери сопоставимые форматы."
+
+    if brick_1['b'] != brick_2['b']:
+        return "Длины кирпичей не совпадают. Выбери сопоставимые форматы"
+
+    brick_height = brick_1['c']
+    brick_l = brick_1['b']
+    d_inner = d_outer - 2*brick_height
+    l_outer = d_outer*pi
+    l_inner = d_inner*pi
+    brick2_n_raw = ((l_inner-(brick_1['a1']/brick_1['a'])*l_outer)/(brick_2['a1']-(brick_1['a1']/brick_1['a'])*brick_2['a']))
+    brick1_n_raw = (l_outer-brick2_n_raw*brick_2['a'])/brick_1['a']
+    brick2_n = round(brick2_n_raw)
+    brick1_n = round(brick1_n_raw)
+    return (f"🧱 Кирпичей в кольце {brick1_n + brick2_n}. Из них:\n"
+            f"===================\n"            
+            f"{brick1_n} кирпичей {selected_standard} {format_1_name}\n"
+            f"{brick2_n} кирпичей {selected_standard} {format_2_name}\n"
+            f"===================\n"
+            f"Количество колец: {ceil(l_furnace/brick_l)}")
+
+
 def submit():
     selected_standard = standard_select.get()
     format_1_name = first_format.get()
@@ -64,19 +97,13 @@ def submit():
     except Exception as e:
         render_result(str(e))
 
-    data = STANDARDS[selected_standard]
-
-    brick_1 = data[format_1_name] if format_1_name in data else data[int(format_1_name)]
-    brick_2 = data[format_2_name] if format_2_name in data else data[int(format_2_name)]
     d_outer = int(D_outer_raw)
-    l = float(L_raw)
+    l = float(L_raw)*1000
 
-    render_result(f"Стандарт: {selected_standard}\n"
-        f"Формат 1: {format_1_name} → {brick_1}\n"
-        f"Формат 2: {format_2_name} → {brick_2}\n"
-        f"Внутренний диаметр печи: {d_outer} мм\n"
-        f"Длинна печи: {l} пог.м \n"
-    )
+    try:
+        render_result(calc(selected_standard, format_1_name, format_2_name, d_outer, l))
+    except Exception as e:
+        render_result(str(e))
 
 root = tk.Tk()
 root.title("Расчёт футеровки клиновым кирпичем")
